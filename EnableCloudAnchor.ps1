@@ -38,7 +38,10 @@
  Script to enable cloud anchor to increase efficiency of migrations 
 
 #> 
-Param()
+Param(
+    [Parameter(Mandatory = $true)]
+    [string]$logFolderPath=$NULL
+)
 
 #*****************************************************
 
@@ -150,7 +153,7 @@ Function Out-LogFile
 
 #*****************************************************
 
-unction get-RuleID
+function get-RuleID
 {
     $functionClientGuid = $NULL
 
@@ -170,6 +173,32 @@ unction get-RuleID
     out-logfile -string "Exiting new-ClientGuid"
 
     return $functionClientGuid
+}
+
+#*****************************************************
+
+function get-ADConnect
+{
+    $functionStaticServerVersion = "Microsoft.Synchronize.ServerConfigurationVersion"
+    $functionConfigurationInformation = $null
+    $functionConfigurationParamters = $null
+    $functionConfigurationVersion = $null
+
+    try {
+        Out-logfile -string "Obtaining Entra Connnect configuration informaiton."
+        $functionConfigurationInformation = Get-ADSyncGlobalSettings -errorAction STOP
+        out-logfile -string "Entra Connect configuration information obtained successfully"
+    }
+    catch {
+        out-logfile -string "Unable to obtain Entra Connect information."
+        out-logfile -string "Please verify this script is installed and running on an Entra Connect server." -isError:$true
+    }
+
+    $functionConfigurationParamters = $functionConfigurationInformation.parameters
+    $functionConfigurationVersion = $functionConfigurationParamters | where {$_.name -eq $functionStaticServerVersion}
+
+    out-logfile -string ("Entra Connect Version Name: " + $functionConfigurationVersion.name)
+    out-logfile -string ("Entra Connect Version Number: " + $functionConfigurationVersion.value)
 }
 
 #=====================================================================================
