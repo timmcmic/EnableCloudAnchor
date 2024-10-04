@@ -44,6 +44,10 @@ Param(
     [Parameter(Mandatory = $false)]
     [ValidateRange(-1, 99)]
     [int]$startingPrecedence=-1,
+    [Parameter(Mandatory = $false)]
+    [boolean]$enableContactProcessing=$TRUE,
+    [Parameter(Mandatory = $false)]
+    [boolean]$enableGroupProcessing=$false,
     [Parameter(Mandatory = $true)]
     [string]$logFolderPath=$NULL
 )
@@ -154,24 +158,54 @@ Function Out-LogFile
 
 #*****************************************************
 
+function validate-RuleID
+{
+    Param(
+        [Parameter(Mandatory = $true)]
+        [string]$testRuleID=$NULL
+    )
+
+    $functionValidateReturn = 1
+
+    out-logfile -string ("Testing to ensure that rule ID: "+$testRuleID+ " does not exist.")
+
+    if (Get-ADSyncRule -Identifier $TestRuleID)
+    {
+        out-logfile -string "Rule ID exists."
+        $functionValidateReturn = 0
+    }
+    else 
+    {
+        out-logfile -string "Rule ID does not exist - proceed."
+    }
+
+    out-logfile -string ("Returning validation information: "+$functionValidateReturn.tostring())
+
+    return $functionValidateReturn
+}
+
+#*****************************************************
+
 function get-RuleID
 {
     $functionClientGuid = $NULL
 
-    out-logfile -string "Entering new-ClientGuid"
+    out-logfile -string "Calculating a new rule ID for the AD Connect Rule."
 
-    try
-    {   
-        out-logfile -string "Obtain client GUID."
-        $functionClientGuid = new-GUID -errorAction STOP
-        out-logfile -string "Client GUID obtained successfully."
-    }
-    catch {
-        out-logfile -string $_
-        out-logfile -string "Unable to obtain client GUID." -isError:$true
-    }
-
-    out-logfile -string "Exiting new-ClientGuid"
+    do {
+        try
+        {   
+            out-logfile -string "Obtain new rule ID."
+            $functionClientGuid = new-GUID -errorAction STOP
+            out-logfile -string "Client GUID obtained successfully."
+        }
+        catch {
+            out-logfile -string $_
+            out-logfile -string "Unable to obtain client GUID." -isError:$true
+        }
+    } until (
+        (validate-RuleID -testRuleID $functionClientGuid) -eq 1
+    )
 
     return $functionClientGuid
 }
@@ -382,6 +416,27 @@ function  validate-userPrecedence
     }
 }
 
+#*****************************************************
+
+function  validate-Parameters
+{
+    Param(
+        [Parameter(Mandatory = $true)]
+        [boolean]$enableContactProcessing,
+        [Parameter(Mandatory = $true)]
+        [boolean]$enableGroupProcessing
+    )
+
+    out-logfile -string "Checking to ensure only one type of processing is enabled."
+
+    if (($enableContactProcessing -eq $TRUE) -and ($enableGroupProcessing -eq $TRUE))
+    {
+        out-logfile -string "Either contact processing or group processing may be enabled at one time."
+        out-logfile -string "To enable group processing utilize -enableContactProcessing:$FALSE -enableGroupProcessing:$TRUE"
+        out-logfile -string "ERROR" -isError:$true
+    }
+}
+
 #=====================================================================================
 #Begin main function body.
 #=====================================================================================
@@ -391,6 +446,7 @@ function  validate-userPrecedence
 $logFileName = "EnableCloudAnchor"
 $activeDirectoryConnector = $NULL
 $precedence = -1
+$precedencePlusOne = -1
 $activeRuleID = $null
 $disabledRuleID = $null
 
@@ -400,6 +456,8 @@ new-logfile -logFileName $logFileName -logFolderPath $logFolderPath
 out-logfile -string "====================================================================================="
 out-logfile -string "Begin EnableCloudAnchor"
 out-logfile -string "====================================================================================="
+
+validate-Parameters -enableContactProcessing $enableContactProcessing -enableGroupProcessing $enableGroupProcessing
 
 get-ADConnect #Validate that we are running the commands on an ADConnect Server
 
@@ -424,5 +482,14 @@ else
     $precedence = $startingPrecedence
 }
 
-out-logfile -string ("Staring precedence specified or calculated: "+$precedence.tostring())
+$precedencePlusOne = $precedence+1
+
+out-logfile -string ("Active Rule precedence calculated or specified: "+$precedence.tostring())
+out-logfile -string ("Disabled Rule precedence calculated or specified: "+$precedencePlusOne.tostring())
+
+$disabledRuleID = get-RuleID
+out-logfile -string ("Active Rule ID: "+$disabledRuleID)
+
+$disabledRuleID = get-RuleID
+out-logfile -string ("Disabled Rule ID: "+$disabledRuleID)
 
