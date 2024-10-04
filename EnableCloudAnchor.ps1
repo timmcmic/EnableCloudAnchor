@@ -40,6 +40,11 @@
 #> 
 Param(
     [Parameter(Mandatory = $true)]
+    [string]$forestRootFQDN=$NULL,
+    [Parameter(Mandatory = $false)]
+    [ValidateRange(-1, 99)]
+    [int]$startingPrecedence=-1,
+    [Parameter(Mandatory = $true)]
     [string]$logFolderPath=$NULL
 )
 
@@ -144,10 +149,6 @@ Function Out-LogFile
         #This is how we end up logging an error then looping back around.
 
         write-error $logString
-
-        #Now if we're not in a do while we end up here -> go ahead and create the status file this was not a retryable operation and is a hard failure.
-
-        exit
     }
 }
 
@@ -191,7 +192,8 @@ function get-ADConnect
     }
     catch {
         out-logfile -string "Unable to obtain Entra Connect information."
-        out-logfile -string "Please verify this script is installed and running on an Entra Connect server." -isError:$true
+        out-logfile -string "Please verify this script is installed and running on an Entra Connect server." 
+        out-logfile -string $_ -isError:$true
     }
 
     $functionConfigurationParamters = $functionConfigurationInformation.parameters
@@ -201,13 +203,226 @@ function get-ADConnect
     out-logfile -string ("Entra Connect Version Number: " + $functionConfigurationVersion.value)
 }
 
+#*****************************************************
+
+function get-ADConnector
+{
+    Param(
+    [Parameter(Mandatory = $true)]
+    [string]$forestRootFQDN=$NULL
+    )
+
+    $functionConnectors=$null
+    $functionADConnectors=$null
+    $functionReturnConnector = $null
+    $connectorType = "AD"
+    $connectorFound = $false
+
+    try {
+        Out-logfile -string "Obtaining all sync connectors."
+        $functionConnectors = Get-ADSyncConnector -errorAction STOP
+        out-logfile -string "Successfully obtained sync connectors."
+    }
+    catch {
+        out-logfile -string "Unable to obtain sync connector configuration."
+        out-logfile -string $_ -isError:$true
+    }
+
+    $functionADConnectors = $functionConnectors | where {$_.type -eq $connectorType}
+
+    foreach ($connector in $functionADConnectors)
+    {
+        out-logfile -string ("Evaluating connector: "+ $connector.name)
+
+        foreach ($partition in $connector.partitions)
+        {
+            out-logfile -string ("Evaluating parition: "+ $partition.name)
+
+            if ($partition.name -eq $forestRootFQDN)
+            {
+                out-logfile -string "Correct active directory connector was found."
+                out-logfile -string ("Correct connector id: "+$connector.identifier)
+
+                $functionReturnConnector = $connector.identifier
+            }
+            else 
+            {
+                out-logfile -string "Partition not found on connector."
+            }
+        }
+    }
+
+    if ($functionReturnConnector -eq $NULL)
+    {
+        out-logfile -string "ERROR:  No active directory connector was found with the specified forest fqdn." -isError:$true
+    }
+    else 
+    {
+        return $functionReturnConnector
+    }
+}
+
+#*****************************************************
+
+function get-freePrecedence
+{
+    $highestPrecedence = 99
+    $lowestPrecedence = 0
+    $endTest = $highestPrecedence + 1
+    $precedenceArray = @($false) * 100
+    [int]$precendenceTest = -1
+    $syncRules = $NULL
+
+    try {
+        out-logfile -string "Obtaining all sync rules."
+        $syncRules = Get-ADSyncRule -errorAction STOP
+        out-logfile -string "Successfully obtained all sync rules."
+    }
+    catch {
+        out-logfile -string "Unable to obtain sync rules."
+        out-logfile -string $_ -isError:$TRUE
+    }
+
+    foreach ($rule in $syncRules)
+    {
+        out-logfile -string "Evaluating rule precedence."
+        out-logfile -string ("Ealuating rule precedence: "+$rule.precedence)
+
+        $precedenceTest = [int]$rule.precedence
+
+        if ($precedenceTest -lt $highestPrecedence)
+        {
+            out-logfile -string "Rule is in custom range - set spot to unavailable."
+
+            out-logfile -string $precedenceArray[$precedenceTest]
+            $precedenceArray[$precedenceTest] = $true
+            out-logfile -string $precedenceArray[$precedenceTest]
+        }
+    }
+
+    [int]$precendenceTest = -1 #Resetting precedenceTest
+
+    for ($i = $lowestPrecedence ; $i -lt $highestPrecedence ; $i++)
+    {
+        out-logfile -string ("Evaluating precedence: "+$i.tostring() + " and " + ($i+1).tostring())
+
+        if (($precedenceArray[$i] -eq $FALSE) -and ($precedenceArray[$i+1] -eq $FALSE))
+        {
+            out-logfile -string "Two adjoining precedences were found as free."
+            $precendenceTest = $i
+            $i = $endTest #Force loop to exit
+        }
+        else 
+        {
+            out-logfile -string "Adjoining precdences were not found as free this pass."
+        }
+    }
+
+    if ($precendenceTest -eq -1)
+    {
+        out-logfile -string "There were no adjoining precedence that were free - administrator must specify precedence." -isError:$TRUE
+    }
+    else 
+    {
+        return $precendenceTest
+    }
+}
+
+#*****************************************************
+
+function  validate-userPrecedence
+{
+    Param(
+        [Parameter(Mandatory = $true)]
+        [int]$userPrecedence=-1
+    )
+
+    $precedenceArray = @($false) * 100
+    $highestPrecedence = 99
+    $lowestPrecedence = 0
+    [int]$precendenceTest = -1
+    $syncRules = $NULL
+
+    try {
+        out-logfile -string "Obtaining all sync rules."
+        $syncRules = Get-ADSyncRule -errorAction STOP
+        out-logfile -string "Successfully obtained all sync rules."
+    }
+    catch {
+        out-logfile -string "Unable to obtain sync rules."
+        out-logfile -string $_ -isError:$TRUE
+    }
+
+    foreach ($rule in $syncRules)
+    {
+        out-logfile -string "Evaluating rule precedence."
+        out-logfile -string ("Ealuating rule precedence: "+$rule.precedence)
+
+        $precedenceTest = [int]$rule.precedence
+
+        if ($precedenceTest -lt $highestPrecedence)
+        {
+            out-logfile -string "Rule is in custom range - set spot to unavailable."
+
+            out-logfile -string $precedenceArray[$precedenceTest]
+            $precedenceArray[$precedenceTest] = $true
+            out-logfile -string $precedenceArray[$precedenceTest]
+        }
+    }
+
+    if (($precedenceArray[$userPrecedence] -eq $FALSE) -and ($precedenceArray[$userPrecedence+1] -eq $FALSE))
+    {
+        out-logfile -string "The administrator supplied precedence and the next higher are free - continue."
+    }
+    else 
+    {
+        out-logfile -string "The administrator supplied precedence must have the specified value + the next value free."
+        out-logfile -string "For example if 2 is specified 2 and 3 must be avilable - this is not the case."
+        out-logfile -string "Specify a precedence where both the specified value and next value are free." -isError:$TRUE
+    }
+}
+
 #=====================================================================================
 #Begin main function body.
 #=====================================================================================
+
+#Declare variables
+
+$logFileName = "EnableCloudAnchor"
+$activeDirectoryConnector = $NULL
+$precedence = -1
+$activeRuleID = $null
+$disabledRuleID = $null
+
+
+new-logfile -logFileName $logFileName -logFolderPath $logFolderPath
 
 out-logfile -string "====================================================================================="
 out-logfile -string "Begin EnableCloudAnchor"
 out-logfile -string "====================================================================================="
 
-get-ADConnect
+get-ADConnect #Validate that we are running the commands on an ADConnect Server
+
+$activeDirectoryConnector = get-ADConnector -forestRootFQDN $forestRootFQDN #Get the active directory connector that we will be working with.
+
+out-logfile -string ("Correct connector id: "+$activeDirectoryConnector)
+
+if ($startingPrecedence -eq $precedence)
+{
+    out-logfile -string "Administrator did not specify a starting precedence."
+
+    $precedence =  get-freePrecedence
+
+    out-logfile -string ("Starting precedence found: "+$precedence)
+}
+else
+{
+    out-logfile -string "Beginning precedence evaluation."
+
+    validate-userPrecedence -userPrecedence $startingPrecedence
+
+    $precedence = $startingPrecedence
+}
+
+out-logfile -string ("Staring precedence specified or calculated: "+$precedence.tostring())
 
