@@ -457,8 +457,8 @@ function create-contactSyncRuleEnabled
     $functionDirection = "Outbound"
     $functionPrecedenceAfter = '00000000-0000-0000-0000-000000000000'
     $functionPrecedenceBefore = '00000000-0000-0000-0000-000000000000'
-    $functionSourceObjectType = "Person"
-    $functionTargetObjectType = "Contact"
+    $functionSourceObjectType = "person"
+    $functionTargetObjectType = "contact"
     $functionLinkType = "Join"
     $functionSoftDeleteExpiraryInterval = 0
     $functionImmutableTag = ""
@@ -496,7 +496,7 @@ function create-contactSyncRuleEnabled
     try {
         out-logfile -string "Adding the new rule."
 
-        add-ADSyncRule -SynchronizationRule $syncRule[0] -errorAction .\SampleContactRule.ps1
+        add-ADSyncRule -SynchronizationRule $syncRule[0] -errorAction STOP
 
         out-logfile -string "Rule added successfully."
     }
