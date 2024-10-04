@@ -47,10 +47,12 @@ Param(
     [Parameter(Mandatory = $false)]
     [boolean]$enableContactProcessing=$TRUE,
     [Parameter(Mandatory = $false)]
-    [boolean]$enableGroupProcessing=$false,
+    [boolean]$enableGroupProcessing=$true,
     [Parameter(Mandatory = $true)]
     [string]$logFolderPath=$NULL
 )
+
+$ErrorActionPreference = 'Stop'
 
 #*****************************************************
 
@@ -433,7 +435,7 @@ function  validate-Parameters
     {
         out-logfile -string "Either contact processing or group processing may be enabled at one time."
         out-logfile -string "To enable group processing utilize -enableContactProcessing:$FALSE -enableGroupProcessing:$TRUE"
-        out-logfile -string "ERROR" -isError:$true
+        out-logfile -string "ERROR - PARAMETER EXCEPTION" -isError:$true
     }
 }
 
