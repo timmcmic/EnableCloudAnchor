@@ -204,3 +204,8 @@ function get-ADConnect
 #=====================================================================================
 #Begin main function body.
 #=====================================================================================
+
+out-logfile -string "Begin EnableCloudAnchor"
+
+get-ADConnect
+
