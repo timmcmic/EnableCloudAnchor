@@ -439,6 +439,47 @@ function  validate-Parameters
     }
 }
 
+#*****************************************************
+
+function create-contactSyncRuleEnabled
+{
+    Param(
+        [Parameter(Mandatory = $true)]
+        [string]$activeRuleID,
+        [Parameter(Mandatory = $true)]
+        [int]$precedence,
+        [Parameter(Mandatory = $true)]
+        [string]$adConnectorID
+    )
+
+    $functionRuleName = "Out to AD - Contact Write CloudAnchor"
+    $functionDescription = "This rule enables writing back Cloud Anchor to Contacts in the form of Cloud_Anchor"
+    $functionDirection = "Outbound"
+    $functionPrecedenceAfter = '00000000-0000-0000-0000-000000000000'
+    $functionPrecedenceBefore = '00000000-0000-0000-0000-000000000000'
+    $functionSourceObjectType = "Person"
+    $functionTargetObjectType = "Contact"
+    $functionLinkType = "Join"
+    $functionSoftDeleteExpiraryInterval = 0
+    $functionImmutableTag = ""
+    $functionActiveRule = $NULL
+
+    try {
+        out-logfile -string "Create the rule template."
+
+        $functionActiveRule = new-ADSyncRule -name $functionRuleName -Identifier $activeRuleID -Description $functionDescription -Direction $functionDirection -Precedence $precedence -PrecedenceAfter $functionPrecedenceAfter -PrecedenceBefore $functionPrecedenceBefore -SourceObjectType $functionSourceObjectType -TargetObjectType $functionTargetObjectType -Connector $adConnectorID -LinkType $functionLinkType -SoftDeleteExpiryInterval $functionSoftDeleteExpiraryInterval -ImmutableTag $functionImmutableTag -errorAction STOP
+
+        out-logfile -string "Rule templated created successfully."
+        out-logfile -string $functionActiveRule
+    }
+    catch {
+        out-logfile -string "Unable to create the rule template."
+        out-logfile -string $_ -isError:$true
+    }
+
+    
+}
+
 #=====================================================================================
 #Begin main function body.
 #=====================================================================================
@@ -489,8 +530,8 @@ $precedencePlusOne = $precedence+1
 out-logfile -string ("Active Rule precedence calculated or specified: "+$precedence.tostring())
 out-logfile -string ("Disabled Rule precedence calculated or specified: "+$precedencePlusOne.tostring())
 
-$disabledRuleID = get-RuleID
-out-logfile -string ("Active Rule ID: "+$disabledRuleID)
+$activeRuleID = get-RuleID
+out-logfile -string ("Active Rule ID: "+$activeRuleID)
 
 $disabledRuleID = get-RuleID
 out-logfile -string ("Disabled Rule ID: "+$disabledRuleID)
@@ -498,6 +539,8 @@ out-logfile -string ("Disabled Rule ID: "+$disabledRuleID)
 if ($enableContactProcessing -eq $TRUE)
 {
     out-logfile -string "Entering contact rule processing."
+
+    create-contactSyncRuleEnabled -activeRuleID $activeRuleID -precedence -adConnectorID $activeDirectoryConnector
 }
 else 
 {
