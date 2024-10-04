@@ -1,0 +1,43 @@
+
+<#PSScriptInfo
+
+.VERSION 1.0
+
+.GUID 122be5c6-e80f-4f9f-a871-107e2b19ddb9
+
+.AUTHOR timmcmic
+
+.COMPANYNAME
+
+.COPYRIGHT
+
+.TAGS
+
+.LICENSEURI
+
+.PROJECTURI
+
+.ICONURI
+
+.EXTERNALMODULEDEPENDENCIES 
+
+.REQUIREDSCRIPTS
+
+.EXTERNALSCRIPTDEPENDENCIES
+
+.RELEASENOTES
+
+
+.PRIVATEDATA
+
+#>
+
+<# 
+
+.DESCRIPTION 
+ Script to enable cloud anchor to increase efficiency of migrations 
+
+#> 
+Param()
+
+
