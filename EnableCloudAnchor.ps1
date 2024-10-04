@@ -495,3 +495,11 @@ out-logfile -string ("Active Rule ID: "+$disabledRuleID)
 $disabledRuleID = get-RuleID
 out-logfile -string ("Disabled Rule ID: "+$disabledRuleID)
 
+if ($enableContactProcessing -eq $TRUE)
+{
+    out-logfile -string "Entering contact rule processing."
+}
+else 
+{
+    out-logfile -string "Entering group rule processing."
+}
