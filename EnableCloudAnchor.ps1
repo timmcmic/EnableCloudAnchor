@@ -47,7 +47,7 @@ Param(
     [Parameter(Mandatory = $false)]
     [boolean]$enableContactProcessing=$TRUE,
     [Parameter(Mandatory = $false)]
-    [boolean]$enableGroupProcessing=$true,
+    [boolean]$enableGroupProcessing=$false,
     [Parameter(Mandatory = $true)]
     [string]$logFolderPath=$NULL
 )
