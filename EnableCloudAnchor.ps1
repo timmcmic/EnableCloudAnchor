@@ -462,21 +462,48 @@ function create-contactSyncRuleEnabled
     $functionLinkType = "Join"
     $functionSoftDeleteExpiraryInterval = 0
     $functionImmutableTag = ""
+    $functionSource = @('cloudAnchor')
+    $functionDestination = 'ms-Ds-ExternalDirectoryObjectID'
+    $functionFlowType = "Direct"
+    $functionValueMergeType = "Update"
     $functionActiveRule = $NULL
 
     try {
         out-logfile -string "Create the rule template."
 
-        $functionActiveRule = new-ADSyncRule -name $functionRuleName -Identifier $activeRuleID -Description $functionDescription -Direction $functionDirection -Precedence $precedence -PrecedenceAfter $functionPrecedenceAfter -PrecedenceBefore $functionPrecedenceBefore -SourceObjectType $functionSourceObjectType -TargetObjectType $functionTargetObjectType -Connector $adConnectorID -LinkType $functionLinkType -SoftDeleteExpiryInterval $functionSoftDeleteExpiraryInterval -ImmutableTag $functionImmutableTag -errorAction STOP
+        new-ADSyncRule -name $functionRuleName -Identifier $activeRuleID -Description $functionDescription -Direction $functionDirection -Precedence $precedence -PrecedenceAfter $functionPrecedenceAfter -PrecedenceBefore $functionPrecedenceBefore -SourceObjectType $functionSourceObjectType -TargetObjectType $functionTargetObjectType -Connector $adConnectorID -LinkType $functionLinkType -SoftDeleteExpiryInterval $functionSoftDeleteExpiraryInterval -ImmutableTag $functionImmutableTag -OutVariable syncRule -errorAction STOP
 
         out-logfile -string "Rule templated created successfully."
-        out-logfile -string $functionActiveRule
     }
     catch {
         out-logfile -string "Unable to create the rule template."
         out-logfile -string $_ -isError:$true
     }
 
+    try {
+        out-logfile -string "Updating attribute flow mapping."
+
+        Add-ADSyncAttributeFlowMapping -SynchronizationRule $syncRule[0] -Source $functionSource -Destination $functionDestination -flowType $functionFlowType -ValueMergeType $functionValueMergeType -OutVariable syncRule -errorAction STOP
+
+        out-logfile -string "Attribute flow mapping updated."
+    }
+    catch {
+        out-logfile -string "Unable to update the attribute flow mapping."
+
+        out-logfile -string $_
+    }
+
+    try {
+        out-logfile -string "Adding the new rule."
+
+        add-ADSyncRule -SynchronizationRule $syncRule[0] -errorAction .\SampleContactRule.ps1
+
+        out-logfile -string "Rule added successfully."
+    }
+    catch {
+        out-logfile -string "Unable to add the rule."
+        out-logfile -string $_ -isError:$TRUE
+    }
     
 }
 
@@ -538,9 +565,9 @@ out-logfile -string ("Disabled Rule ID: "+$disabledRuleID)
 
 if ($enableContactProcessing -eq $TRUE)
 {
-    out-logfile -string "Entering contact rule processing."
+    out-logfile -string "EntAering contact rule processing."
 
-    create-contactSyncRuleEnabled -activeRuleID $activeRuleID -precedence -adConnectorID $activeDirectoryConnector
+    create-contactSyncRuleEnabled -activeRuleID $activeRuleID -precedence $precedence -adConnectorID $activeDirectoryConnector
 }
 else 
 {
