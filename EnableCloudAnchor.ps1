@@ -445,7 +445,7 @@ function create-contactSyncRuleEnabled
 {
     Param(
         [Parameter(Mandatory = $true)]
-        [string]$activeRuleID,
+        [string]$RuleID,
         [Parameter(Mandatory = $true)]
         [int]$precedence,
         [Parameter(Mandatory = $true)]
@@ -463,15 +463,14 @@ function create-contactSyncRuleEnabled
     $functionSoftDeleteExpiraryInterval = 0
     $functionImmutableTag = ""
     $functionSource = @('cloudAnchor')
-    $functionDestination = 'ms-Ds-ExternalDirectoryObjectID'
+    $functionDestination = 'msDS-ExternalDirectoryObjectId'
     $functionFlowType = "Direct"
     $functionValueMergeType = "Update"
-    $functionActiveRule = $NULL
 
     try {
         out-logfile -string "Create the rule template."
 
-        new-ADSyncRule -name $functionRuleName -Identifier $activeRuleID -Description $functionDescription -Direction $functionDirection -Precedence $precedence -PrecedenceAfter $functionPrecedenceAfter -PrecedenceBefore $functionPrecedenceBefore -SourceObjectType $functionSourceObjectType -TargetObjectType $functionTargetObjectType -Connector $adConnectorID -LinkType $functionLinkType -SoftDeleteExpiryInterval $functionSoftDeleteExpiraryInterval -ImmutableTag $functionImmutableTag -OutVariable syncRule -errorAction STOP
+        new-ADSyncRule -name $functionRuleName -Identifier $RuleID -Description $functionDescription -Direction $functionDirection -Precedence $precedence -PrecedenceAfter $functionPrecedenceAfter -PrecedenceBefore $functionPrecedenceBefore -SourceObjectType $functionSourceObjectType -TargetObjectType $functionTargetObjectType -Connector $adConnectorID -LinkType $functionLinkType -SoftDeleteExpiryInterval $functionSoftDeleteExpiraryInterval -ImmutableTag $functionImmutableTag -OutVariable syncRule -errorAction STOP
 
         out-logfile -string "Rule templated created successfully."
     }
@@ -484,6 +483,75 @@ function create-contactSyncRuleEnabled
         out-logfile -string "Updating attribute flow mapping."
 
         Add-ADSyncAttributeFlowMapping -SynchronizationRule $syncRule[0] -Source $functionSource -Destination $functionDestination -flowType $functionFlowType -ValueMergeType $functionValueMergeType -OutVariable syncRule -errorAction STOP
+
+        out-logfile -string "Attribute flow mapping updated."
+    }
+    catch {
+        out-logfile -string "Unable to update the attribute flow mapping."
+
+        out-logfile -string $_
+    }
+
+    try {
+        out-logfile -string "Adding the new rule."
+
+        add-ADSyncRule -SynchronizationRule $syncRule[0] -errorAction STOP
+
+        out-logfile -string "Rule added successfully."
+    }
+    catch {
+        out-logfile -string "Unable to add the rule."
+        out-logfile -string $_ -isError:$TRUE
+    }
+    
+}
+
+#*****************************************************
+
+function create-contactSyncRuleDisabled
+{
+    Param(
+        [Parameter(Mandatory = $true)]
+        [string]$RuleID,
+        [Parameter(Mandatory = $true)]
+        [int]$precedence,
+        [Parameter(Mandatory = $true)]
+        [string]$adConnectorID
+    )
+
+    $functionRuleName = "Out to AD - Contact Write CloudAnchor (Revert WriteBack)"
+    $functionDescription = "This rule sets an authoritativeNULL removing the Cloud_ value from contacts"
+    $functionDirection = "Outbound"
+    $functionPrecedenceAfter = '00000000-0000-0000-0000-000000000000'
+    $functionPrecedenceBefore = '00000000-0000-0000-0000-000000000000'
+    $functionSourceObjectType = "person"
+    $functionTargetObjectType = "contact"
+    $functionLinkType = "Join"
+    $functionSoftDeleteExpiraryInterval = 0
+    $functionImmutableTag = ""
+    $functionSource = @('cloudAnchor')
+    $functionDestination = 'msDS-ExternalDirectoryObjectId'
+    $functionFlowType = "Expression"
+    $functionValueMergeType = "Update"
+    $functionExpression = "AuthoritativeNull"
+    $functionActiveRule = $NULL
+
+    try {
+        out-logfile -string "Create the rule template."
+
+        new-ADSyncRule -name $functionRuleName -Identifier $RuleID -Description $functionDescription -Direction $functionDirection -Precedence $precedence -PrecedenceAfter $functionPrecedenceAfter -PrecedenceBefore $functionPrecedenceBefore -SourceObjectType $functionSourceObjectType -TargetObjectType $functionTargetObjectType -Connector $adConnectorID -LinkType $functionLinkType -SoftDeleteExpiryInterval $functionSoftDeleteExpiraryInterval -ImmutableTag $functionImmutableTag -Disabled -OutVariable syncRule -errorAction STOP
+
+        out-logfile -string "Rule templated created successfully."
+    }
+    catch {
+        out-logfile -string "Unable to create the rule template."
+        out-logfile -string $_ -isError:$true
+    }
+
+    try {
+        out-logfile -string "Updating attribute flow mapping."
+
+        Add-ADSyncAttributeFlowMapping -SynchronizationRule $syncRule[0] -Source $functionSource -Destination $functionDestination -flowType $functionFlowType -ValueMergeType $functionValueMergeType -expression $functionExpression -OutVariable syncRule -errorAction STOP
 
         out-logfile -string "Attribute flow mapping updated."
     }
@@ -567,7 +635,9 @@ if ($enableContactProcessing -eq $TRUE)
 {
     out-logfile -string "EntAering contact rule processing."
 
-    create-contactSyncRuleEnabled -activeRuleID $activeRuleID -precedence $precedence -adConnectorID $activeDirectoryConnector
+    create-contactSyncRuleEnabled -ruleID $activeRuleID -precedence $precedence -adConnectorID $activeDirectoryConnector
+
+    create-contactSyncRuleDisabled -ruleID $disabledRuleID -precedence $precedencePlusOne -adConnectorID $activeDirectoryConnector
 }
 else 
 {
