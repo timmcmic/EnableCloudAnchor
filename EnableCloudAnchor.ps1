@@ -150,3 +150,27 @@ Function Out-LogFile
 
 #*****************************************************
 
+unction get-RuleID
+{
+    $functionClientGuid = $NULL
+
+    out-logfile -string "Entering new-ClientGuid"
+
+    try
+    {   
+        out-logfile -string "Obtain client GUID."
+        $functionClientGuid = new-GUID -errorAction STOP
+        out-logfile -string "Client GUID obtained successfully."
+    }
+    catch {
+        out-logfile -string $_
+        out-logfile -string "Unable to obtain client GUID." -isError:$true
+    }
+
+    out-logfile -string "Exiting new-ClientGuid"
+
+    return $functionClientGuid
+}
+
+#*****************************************************
+
