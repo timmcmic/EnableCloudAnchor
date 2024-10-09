@@ -1,7 +1,7 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0.1
+.VERSION 1.0.3
 
 .GUID 122be5c6-e80f-4f9f-a871-107e2b19ddb9
 
@@ -617,59 +617,6 @@ function  validate-Parameters
 
 #*****************************************************
 
-function create-contactSyncRuleEnabled
-{
-    Param(
-        [Parameter(Mandatory = $true)]
-        [string]$RuleID,
-        [Parameter(Mandatory = $true)]
-        [int]$precedence,
-        [Parameter(Mandatory = $true)]
-        [string]$adConnectorID
-    )
-
-    
-
-    try {
-        out-logfile -string "Create the rule template."
-
-        new-ADSyncRule -name $functionRuleName -Identifier $RuleID -Description $functionDescription -Direction $functionDirection -Precedence $precedence -PrecedenceAfter $functionPrecedenceAfter -PrecedenceBefore $functionPrecedenceBefore -SourceObjectType $functionSourceObjectType -TargetObjectType $functionTargetObjectType -Connector $adConnectorID -LinkType $functionLinkType -SoftDeleteExpiryInterval $functionSoftDeleteExpiraryInterval -ImmutableTag $functionImmutableTag -OutVariable syncRule -errorAction STOP
-
-        out-logfile -string "Rule templated created successfully."
-    }
-    catch {
-        out-logfile -string "Unable to create the rule template."
-        out-logfile -string $_ -isError:$true
-    }
-
-    try {
-        out-logfile -string "Updating attribute flow mapping."
-
-        Add-ADSyncAttributeFlowMapping -SynchronizationRule $syncRule[0] -Source $functionSource -Destination $functionDestination -flowType $functionFlowType -ValueMergeType $functionValueMergeType -OutVariable syncRule -errorAction STOP
-
-        out-logfile -string "Attribute flow mapping updated."
-    }
-    catch {
-        out-logfile -string "Unable to update the attribute flow mapping."
-
-        out-logfile -string $_
-    }
-
-    try {
-        out-logfile -string "Adding the new rule."
-
-        add-ADSyncRule -SynchronizationRule $syncRule[0] -errorAction STOP
-
-        out-logfile -string "Rule added successfully."
-    }
-    catch {
-        out-logfile -string "Unable to add the rule."
-        out-logfile -string $_ -isError:$TRUE
-    }
-}
-
-#*****************************************************
-
 function create-SyncRuleEnabled
 {
     Param(
@@ -685,7 +632,7 @@ function create-SyncRuleEnabled
     )
 
     $functionUserObjectType = "User"
-    $functionContactObjecType = "Contact"
+    $functionContactObjectType = "Contact"
     $functionGroupObjectType = "Group"
 
     $functionDirection = "Outbound"
@@ -874,9 +821,9 @@ $precedence = -1
 $precedencePlusOne = -1
 $activeRuleID = $null
 $disabledRuleID = $null
-$functionUserObjectType = "User"
-$functionContactObjecType = "Contact"
-$functionGroupObjectType = "Group"
+$functionUserOperationType = "User"
+$functionContactOperationType = "Contact"
+$functionGroupOperationType = "Group"
 
 
 new-logfile -logFileName $logFileName -logFolderPath $logFolderPath
