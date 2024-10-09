@@ -1,7 +1,7 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0.8
+.VERSION 1.0.9
 
 .GUID 122be5c6-e80f-4f9f-a871-107e2b19ddb9
 
@@ -718,7 +718,7 @@ function create-SyncRule
     {
         out-logfile -string "Entering function group object type..."
 
-        $functionRuleName = "Out to AD - Contact Write CloudAnchor (Revert WriteBack)"
+        $functionRuleName = "Out to AD - Group Write CloudAnchor (Revert WriteBack)"
         $functionDescription = "This rule sets an authoritativeNULL removing the Cloud_ value from groups."
         $functionSourceObjectType = "group"
         $functionTargetObjectType = "group"
