@@ -1,7 +1,7 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0.3
+.VERSION 1.0.4
 
 .GUID 122be5c6-e80f-4f9f-a871-107e2b19ddb9
 
@@ -617,7 +617,7 @@ function  validate-Parameters
 
 #*****************************************************
 
-function create-SyncRuleEnabled
+function create-SyncRule
 {
     Param(
         [Parameter(Mandatory = $true)]
@@ -628,25 +628,48 @@ function create-SyncRuleEnabled
         [string]$adConnectorID,
         [Parameter(Mandatory = $true)]
         [ValidateSet("User","Group","Contact")]
-        [string]$operationType
+        [string]$operationType,
+        [Parameter(Mandatory = $true)]
+        [boolean]$ruleEnabled = $true
     )
 
     $functionUserObjectType = "User"
     $functionContactObjectType = "Contact"
     $functionGroupObjectType = "Group"
 
-    $functionDirection = "Outbound"
-    $functionPrecedenceAfter = '00000000-0000-0000-0000-000000000000'
-    $functionPrecedenceBefore = '00000000-0000-0000-0000-000000000000'
-    $functionLinkType = "Join"
-    $functionSoftDeleteExpiraryInterval = 0
-    $functionImmutableTag = ""
-    $functionSource = @('cloudAnchor')
-    $functionDestination = 'msDS-ExternalDirectoryObjectId'
-    $functionFlowType = "Direct"
-    $functionValueMergeType = "Update"
+    if ($ruleEnabled -eq $TRUE)
+    {
+        out-logfile -string "Using enabled parameter set."
 
-    if ($operationType -eq $functionUserObjectType)
+        $functionDirection = "Outbound"
+        $functionPrecedenceAfter = '00000000-0000-0000-0000-000000000000'
+        $functionPrecedenceBefore = '00000000-0000-0000-0000-000000000000'
+        $functionLinkType = "Join"
+        $functionSoftDeleteExpiraryInterval = 0
+        $functionImmutableTag = ""
+        $functionSource = @('cloudAnchor')
+        $functionDestination = 'msDS-ExternalDirectoryObjectId'
+        $functionFlowType = "Direct"
+        $functionValueMergeType = "Update"
+    }
+    else 
+    {
+        out-logfile -string "Using disabled parameter set."
+
+        $functionDirection = "Outbound"
+        $functionPrecedenceAfter = '00000000-0000-0000-0000-000000000000'
+        $functionPrecedenceBefore = '00000000-0000-0000-0000-000000000000'
+        $functionLinkType = "Join"
+        $functionSoftDeleteExpiraryInterval = 0
+        $functionImmutableTag = ""
+        $functionSource = @('cloudAnchor')
+        $functionDestination = 'msDS-ExternalDirectoryObjectId'
+        $functionFlowType = "Expression"
+        $functionValueMergeType = "Update"
+        $functionExpression = "AuthoritativeNull"
+    }
+
+    if (($operationType -eq $functionUserObjectType) -and ($RuleEnabled -eq $TRUE))
     {
         out-logfile -string "Entering function user object type..."
 
@@ -655,95 +678,7 @@ function create-SyncRuleEnabled
         $functionSourceObjectType = "person"
         $functionTargetObjectType = "user"
     }
-    elseif ($operationType -eq $functionContactObjectType)
-    {
-        out-logfile -string "Entering function contact object type..."
-
-        $functionRuleName = "Out to AD - Contact Write CloudAnchor"
-        $functionDescription = "This rule enables writing back Cloud Anchor to Contacts in the form of Cloud_Anchor"
-        $functionSourceObjectType = "person"
-        $functionTargetObjectType = "contact"
-    }
-    elseif ($operationType -eq $functionGroupObjectType)
-    {
-        out-logfile -string "Entering function group object type..."
-        $functionRuleName = "Out to AD - Group Write CloudAnchor"
-        $functionDescription = "This rule enables writing back Cloud Anchor to Groups in the form of Group_Anchor"
-        $functionSourceObjectType = "group"
-        $functionTargetObjectType = "group"
-    }
-
-    try {
-        out-logfile -string "Create the rule template."
-
-        new-ADSyncRule -name $functionRuleName -Identifier $RuleID -Description $functionDescription -Direction $functionDirection -Precedence $precedence -PrecedenceAfter $functionPrecedenceAfter -PrecedenceBefore $functionPrecedenceBefore -SourceObjectType $functionSourceObjectType -TargetObjectType $functionTargetObjectType -Connector $adConnectorID -LinkType $functionLinkType -SoftDeleteExpiryInterval $functionSoftDeleteExpiraryInterval -ImmutableTag $functionImmutableTag -OutVariable syncRule -errorAction STOP
-
-        out-logfile -string "Rule templated created successfully."
-    }
-    catch {
-        out-logfile -string "Unable to create the rule template."
-        out-logfile -string $_ -isError:$true
-    }
-
-    try {
-        out-logfile -string "Updating attribute flow mapping."
-
-        Add-ADSyncAttributeFlowMapping -SynchronizationRule $syncRule[0] -Source $functionSource -Destination $functionDestination -flowType $functionFlowType -ValueMergeType $functionValueMergeType -expression $functionExpression -OutVariable syncRule -errorAction STOP
-
-        out-logfile -string "Attribute flow mapping updated."
-    }
-    catch {
-        out-logfile -string "Unable to update the attribute flow mapping."
-
-        out-logfile -string $_
-    }
-
-    try {
-        out-logfile -string "Adding the new rule."
-
-        add-ADSyncRule -SynchronizationRule $syncRule[0] -errorAction STOP
-
-        out-logfile -string "Rule added successfully."
-    }
-    catch {
-        out-logfile -string "Unable to add the rule."
-        out-logfile -string $_ -isError:$TRUE
-    }
-}
-
-#*****************************************************
-
-function create-SyncRuleDisabled
-{
-    Param(
-        [Parameter(Mandatory = $true)]
-        [string]$RuleID,
-        [Parameter(Mandatory = $true)]
-        [int]$precedence,
-        [Parameter(Mandatory = $true)]
-        [string]$adConnectorID,
-        [Parameter(Mandatory = $true)]
-        [ValidateSet("User","Group","Contact")]
-        [string]$operationType
-    )
-
-    $functionUserObjectType = "User"
-    $functionContactObjecType = "Contact"
-    $functionGroupObjectType = "Group"
-
-    $functionDirection = "Outbound"
-    $functionPrecedenceAfter = '00000000-0000-0000-0000-000000000000'
-    $functionPrecedenceBefore = '00000000-0000-0000-0000-000000000000'
-    $functionLinkType = "Join"
-    $functionSoftDeleteExpiraryInterval = 0
-    $functionImmutableTag = ""
-    $functionSource = @('cloudAnchor')
-    $functionDestination = 'msDS-ExternalDirectoryObjectId'
-    $functionFlowType = "Expression"
-    $functionValueMergeType = "Update"
-    $functionExpression = "AuthoritativeNull"
-
-    if ($operationType -eq $functionUserObjectType)
+    elseif (($operationType -eq $functionUserObjectType) -and ($RuleEnabled -eq $false))
     {
         out-logfile -string "Entering function user object type..."
 
@@ -752,7 +687,16 @@ function create-SyncRuleDisabled
         $functionSourceObjectType = "person"
         $functionTargetObjectType = "contact"
     }
-    elseif ($operationType -eq $functionContactObjectType)
+    elseif (($operationType -eq $functionContactObjectType) -and ($ruleEnabled -eq $true))
+    {
+        out-logfile -string "Entering function contact object type..."
+
+        $functionRuleName = "Out to AD - Contact Write CloudAnchor"
+        $functionDescription = "This rule enables writing back Cloud Anchor to Contacts in the form of Cloud_Anchor"
+        $functionSourceObjectType = "person"
+        $functionTargetObjectType = "contact"
+    }
+    elseif (($operationType -eq $functionContactObjectType) -and ($ruleEnabled -eq $false))
     {
         out-logfile -string "Entering function contact object type..."
 
@@ -761,7 +705,16 @@ function create-SyncRuleDisabled
         $functionSourceObjectType = "person"
         $functionTargetObjectType = "contact"
     }
-    elseif ($operationType -eq $functionGroupObjectType)
+    elseif (($operationType -eq $functionGroupObjectType) -and ($ruleEnabled -eq $true))
+    {
+        out-logfile -string "Entering function group object type..."
+
+        $functionRuleName = "Out to AD - Group Write CloudAnchor"
+        $functionDescription = "This rule enables writing back Cloud Anchor to Groups in the form of Group_Anchor"
+        $functionSourceObjectType = "group"
+        $functionTargetObjectType = "group"
+    }
+    elseif (($operationType -eq $functionGroupObjectType) -and ($ruleEnabled -eq $false))
     {
         out-logfile -string "Entering function group object type..."
 
@@ -771,12 +724,27 @@ function create-SyncRuleDisabled
         $functionTargetObjectType = "group"
     }
 
-    try {
+
+    try 
+    {
         out-logfile -string "Create the rule template."
 
-        new-ADSyncRule -name $functionRuleName -Identifier $RuleID -Description $functionDescription -Direction $functionDirection -Precedence $precedence -PrecedenceAfter $functionPrecedenceAfter -PrecedenceBefore $functionPrecedenceBefore -SourceObjectType $functionSourceObjectType -TargetObjectType $functionTargetObjectType -Connector $adConnectorID -LinkType $functionLinkType -SoftDeleteExpiryInterval $functionSoftDeleteExpiraryInterval -ImmutableTag $functionImmutableTag -Disabled -OutVariable syncRule -errorAction STOP
+        if ($ruleEnabled -eq $TRUE)
+        {
+            out-logfile -string "Using enabled rule template."
 
-        out-logfile -string "Rule templated created successfully."
+            new-ADSyncRule -name $functionRuleName -Identifier $RuleID -Description $functionDescription -Direction $functionDirection -Precedence $precedence -PrecedenceAfter $functionPrecedenceAfter -PrecedenceBefore $functionPrecedenceBefore -SourceObjectType $functionSourceObjectType -TargetObjectType $functionTargetObjectType -Connector $adConnectorID -LinkType $functionLinkType -SoftDeleteExpiryInterval $functionSoftDeleteExpiraryInterval -ImmutableTag $functionImmutableTag -OutVariable syncRule -errorAction STOP
+
+            out-logfile -string "Rule templated created successfully."
+        }
+        else
+        {
+            out-logfile -string "Using disabled rule template."
+
+            new-ADSyncRule -name $functionRuleName -Identifier $RuleID -Description $functionDescription -Direction $functionDirection -Precedence $precedence -PrecedenceAfter $functionPrecedenceAfter -PrecedenceBefore $functionPrecedenceBefore -SourceObjectType $functionSourceObjectType -TargetObjectType $functionTargetObjectType -Connector $adConnectorID -LinkType $functionLinkType -SoftDeleteExpiryInterval $functionSoftDeleteExpiraryInterval -ImmutableTag $functionImmutableTag -Disabled -OutVariable syncRule -errorAction STOP
+
+            out-logfile -string "Rule templated created successfully."
+        }
     }
     catch {
         out-logfile -string "Unable to create the rule template."
@@ -872,23 +840,23 @@ if ($enableContactProcessing -eq $TRUE)
 {
     out-logfile -string "Entering contact rule processing."
 
-    create-SyncRuleEnabled -ruleID $activeRuleID -precedence $precedence -adConnectorID $activeDirectoryConnector -operationType $functionContactOperationType
+    create-SyncRule -ruleID $activeRuleID -precedence $precedence -adConnectorID $activeDirectoryConnector -operationType $functionContactOperationType -ruleEnabled $TRUE
 
-    create-SyncRuleDisabled -ruleID $disabledRuleID -precedence $precedencePlusOne -adConnectorID $activeDirectoryConnector -operationType $functionContactOperationType
+    create-SyncRule -ruleID $disabledRuleID -precedence $precedencePlusOne -adConnectorID $activeDirectoryConnector -operationType $functionContactOperationType -ruleEnabled $FALSE
 }
 elseif ($enableGroupProcessing -eq $true) 
 {
     out-logfile -string "Entering group rule processing."
 
-    create-SyncRuleEnabled -ruleID $activeRuleID -precedence $precedence -adConnectorID $activeDirectoryConnector -operationType $functionGroupOperationType
+    create-SyncRule -ruleID $activeRuleID -precedence $precedence -adConnectorID $activeDirectoryConnector -operationType $functionGroupOperationType -ruleEnabled $TRUE
 
-    create-SyncRuleDisabled -ruleID $disabledRuleID -precedence $precedencePlusOne -adConnectorID $activeDirectoryConnector -operationType $functionGroupOperationType
+    create-SyncRule -ruleID $disabledRuleID -precedence $precedencePlusOne -adConnectorID $activeDirectoryConnector -operationType $functionGroupOperationType -ruleEnabled $FALSE
 }
 elseif ($enableUserProcessing -eq $true) 
 {
     out-logfile -string "Entering user rule processing."
 
-    create-SyncRuleEnabled -ruleID $activeRuleID -precedence $precedence -adConnectorID $activeDirectoryConnector -operationType $functionUserOperationType
+    create-SyncRule -ruleID $activeRuleID -precedence $precedence -adConnectorID $activeDirectoryConnector -operationType $functionUserOperationType -ruleEnabled $TRUE
 
-    create-SyncRuleDisabled -ruleID $disabledRuleID -precedence $precedencePlusOne -adConnectorID $activeDirectoryConnector -operationType $functionUserOperationType
+    create-SyncRule -ruleID $disabledRuleID -precedence $precedencePlusOne -adConnectorID $activeDirectoryConnector -operationType $functionUserOperationType -ruleEnabled $FALSE
 }
