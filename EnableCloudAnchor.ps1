@@ -1,7 +1,7 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0.4
+.VERSION 1.0.7
 
 .GUID 122be5c6-e80f-4f9f-a871-107e2b19ddb9
 
@@ -45,7 +45,7 @@ Param(
     [ValidateRange(-1, 99)]
     [int]$startingPrecedence=-1,
     [Parameter(Mandatory = $false)]
-    [boolean]$enableContactProcessing=$true,
+    [boolean]$enableContactProcessing=$false,
     [Parameter(Mandatory = $false)]
     [boolean]$enableGroupProcessing=$false,
     [Parameter(Mandatory = $false)]
@@ -685,7 +685,7 @@ function create-SyncRule
         $functionRuleName = "Out to AD - User Write CloudAnchor (Revert WriteBack)"
         $functionDescription = "This rule sets an authoritativeNULL removing the Cloud_ value from users."
         $functionSourceObjectType = "person"
-        $functionTargetObjectType = "contact"
+        $functionTargetObjectType = "user"
     }
     elseif (($operationType -eq $functionContactObjectType) -and ($ruleEnabled -eq $true))
     {
@@ -860,3 +860,11 @@ elseif ($enableUserProcessing -eq $true)
 
     create-SyncRule -ruleID $disabledRuleID -precedence $precedencePlusOne -adConnectorID $activeDirectoryConnector -operationType $functionUserOperationType -ruleEnabled $FALSE
 }
+else 
+{
+    out-logfile -string "Wow - that was easy - no operation type specified."
+    out-logfile -string "Specify -enableContactProcessing <or> -enableGroupProcessing <or> -enableUserProcess to a value of TRUE to perform an operation."
+    out-logfile -string "Note:  Only one operation may be performed at a time."
+}
+
+out-logfile -string "This concludes EnableCloudAnchor."
