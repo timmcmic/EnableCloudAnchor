@@ -1,7 +1,7 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0.9
+.VERSION 1.0.10
 
 .GUID 122be5c6-e80f-4f9f-a871-107e2b19ddb9
 
@@ -53,6 +53,78 @@ Param(
     [Parameter(Mandatory = $true)]
     [string]$logFolderPath=$NULL
 )
+
+<#
+
+Sample RAW powershell output for creating the user writeback rule disabled.
+
+
+New-ADSyncRule  `
+-Name 'Out to AD - User Write CloudAnchor (Revert WriteBack)' `
+-Identifier '349d87ab-8dbf-4fe3-b2fc-dc55920ae826' `
+-Description 'This rule sets an authoritativeNULL removing the Cloud_ value from users.' `
+-Direction 'Outbound' `
+-Precedence 9 `
+-PrecedenceAfter '00000000-0000-0000-0000-000000000000' `
+-PrecedenceBefore '00000000-0000-0000-0000-000000000000' `
+-SourceObjectType 'person' `
+-TargetObjectType 'user' `
+-Connector '4f1cdd9e-00fa-4379-be83-4cf471f7c829' `
+-LinkType 'Join' `
+-SoftDeleteExpiryInterval 0 `
+-ImmutableTag '' `
+-Disabled  `
+-OutVariable syncRule
+
+
+Add-ADSyncAttributeFlowMapping  `
+-SynchronizationRule $syncRule[0] `
+-Destination 'msDS-ExternalDirectoryObjectId' `
+-FlowType 'Expression' `
+-ValueMergeType 'Update' `
+-Expression 'AuthoritativeNull' `
+-OutVariable syncRule
+
+
+Add-ADSyncRule  `
+-SynchronizationRule $syncRule[0]
+
+
+Get-ADSyncRule  `
+-Identifier '349d87ab-8dbf-4fe3-b2fc-dc55920ae826'
+
+#>
+
+<#
+
+Sample RAW powershell output for creating the user writeback rule.
+
+New-ADSyncRule  `
+-Name 'Out to AD - User Write CloudAnchor' `
+-Identifier '38270463-2ec8-4b1c-9e5e-f483a1db7abe' `
+-Description 'This rule enables writing back Cloud Anchor to User in the form of User_Anchor' `
+-Direction 'Outbound' `
+-Precedence 8 `
+-PrecedenceAfter '00000000-0000-0000-0000-000000000000' `
+-PrecedenceBefore '00000000-0000-0000-0000-000000000000' `
+-SourceObjectType 'person' `
+-TargetObjectType 'user' `
+-Connector '4f1cdd9e-00fa-4379-be83-4cf471f7c829' `
+-LinkType 'Join' `
+-SoftDeleteExpiryInterval 0 `
+-ImmutableTag '' `
+-OutVariable syncRule
+
+
+Add-ADSyncRule  `
+-SynchronizationRule $syncRule[0]
+
+
+Get-ADSyncRule  `
+-Identifier '38270463-2ec8-4b1c-9e5e-f483a1db7abe'
+
+
+#>
 
 <#
 
