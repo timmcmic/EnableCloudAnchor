@@ -1,13 +1,13 @@
 
 <#PSScriptInfo
 
-.VERSION 1.0
+.VERSION 1.0.1
 
 .GUID 122be5c6-e80f-4f9f-a871-107e2b19ddb9
 
-.AUTHOR timmcmic
+.AUTHOR timmcmic@microsoft.com
 
-.COMPANYNAME
+.COMPANYNAME Microsoft CSS
 
 .COPYRIGHT
 
@@ -45,9 +45,11 @@ Param(
     [ValidateRange(-1, 99)]
     [int]$startingPrecedence=-1,
     [Parameter(Mandatory = $false)]
-    [boolean]$enableContactProcessing=$TRUE,
+    [boolean]$enableContactProcessing=$true,
     [Parameter(Mandatory = $false)]
     [boolean]$enableGroupProcessing=$false,
+    [Parameter(Mandatory = $false)]
+    [boolean]$enableUserProcessing=$false,
     [Parameter(Mandatory = $true)]
     [string]$logFolderPath=$NULL
 )
@@ -93,7 +95,7 @@ Get-ADSyncRule  `
 
 <#
 
-Sample RAW powershell output for running authoritative null to revert writeback.
+Sample RAW powershell output for running authoritative null to revert writeback for contacts.
 
 New-ADSyncRule  `
 -Name 'Out to AD - Contact Write CloudAnchor (Revert WriteBack)' `
@@ -128,6 +130,85 @@ Add-ADSyncRule  `
 
 Get-ADSyncRule  `
 -Identifier '31645b42-bde4-4961-980a-d6c677dda74b'
+
+#>
+
+<#
+
+Sample RAW powershell output for running authoritative null to revert writeback for groups.
+
+New-ADSyncRule  `
+-Name 'Out to AD - Group Write CloudAnchor (Revert WriteBack)' `
+-Identifier '08eddddf-5451-40bc-9d8b-86d36dfb0e79' `
+-Description '' `
+-Direction 'Outbound' `
+-Precedence 13 `
+-PrecedenceAfter '00000000-0000-0000-0000-000000000000' `
+-PrecedenceBefore '00000000-0000-0000-0000-000000000000' `
+-SourceObjectType 'group' `
+-TargetObjectType 'group' `
+-Connector '4f1cdd9e-00fa-4379-be83-4cf471f7c829' `
+-LinkType 'Join' `
+-SoftDeleteExpiryInterval 0 `
+-ImmutableTag '' `
+-Disabled  `
+-OutVariable syncRule
+
+
+Add-ADSyncAttributeFlowMapping  `
+-SynchronizationRule $syncRule[0] `
+-Destination 'mS-DS-ConsistencyGuid' `
+-FlowType 'Expression' `
+-ValueMergeType 'Update' `
+-Expression 'AuthoritativeNull' `
+-OutVariable syncRule
+
+
+Add-ADSyncRule  `
+-SynchronizationRule $syncRule[0]
+
+
+Get-ADSyncRule  `
+-Identifier '08eddddf-5451-40bc-9d8b-86d36dfb0e79'
+
+#>
+
+<#
+
+Sample RAW powershell output for creating the group writeback rule.
+
+New-ADSyncRule  `
+-Name 'Out to AD - Group Write CloudAnchor' `
+-Identifier 'b16ffa1a-2620-4f7a-a43a-143406456bd5' `
+-Description '' `
+-Direction 'Outbound' `
+-Precedence 12 `
+-PrecedenceAfter '00000000-0000-0000-0000-000000000000' `
+-PrecedenceBefore '00000000-0000-0000-0000-000000000000' `
+-SourceObjectType 'group' `
+-TargetObjectType 'group' `
+-Connector '4f1cdd9e-00fa-4379-be83-4cf471f7c829' `
+-LinkType 'Join' `
+-SoftDeleteExpiryInterval 0 `
+-ImmutableTag '' `
+-OutVariable syncRule
+
+
+Add-ADSyncAttributeFlowMapping  `
+-SynchronizationRule $syncRule[0] `
+-Source @('cloudAnchor') `
+-Destination 'msDS-ExternalDirectoryObjectId' `
+-FlowType 'Direct' `
+-ValueMergeType 'Update' `
+-OutVariable syncRule
+
+
+Add-ADSyncRule  `
+-SynchronizationRule $syncRule[0]
+
+
+Get-ADSyncRule  `
+-Identifier 'b16ffa1a-2620-4f7a-a43a-143406456bd5'
 
 #>
 
@@ -505,15 +586,31 @@ function  validate-Parameters
         [Parameter(Mandatory = $true)]
         [boolean]$enableContactProcessing,
         [Parameter(Mandatory = $true)]
-        [boolean]$enableGroupProcessing
+        [boolean]$enableGroupProcessing,
+        [Parameter(Mandatory = $true)]
+        [boolean]$enableUserProcessing
     )
 
     out-logfile -string "Checking to ensure only one type of processing is enabled."
 
-    if (($enableContactProcessing -eq $TRUE) -and ($enableGroupProcessing -eq $TRUE))
+    if (($enableContactProcessing -eq $TRUE) -and ($enableGroupProcessing -eq $TRUE) -and ($enableUserProcessing -eq $TRUE))
+    {
+        out-logfile -string "Only one processing option may be enabled at a time."
+        out-logfile -string "ERROR - PARAMETER EXCEPTION" -isError:$true
+    }
+    elseif (($enableContactProcessing -eq $TRUE) -and ($enableGroupProcessing -eq $TRUE))
     {
         out-logfile -string "Either contact processing or group processing may be enabled at one time."
-        out-logfile -string "To enable group processing utilize -enableContactProcessing:$FALSE -enableGroupProcessing:$TRUE"
+        out-logfile -string "ERROR - PARAMETER EXCEPTION" -isError:$true
+    }
+    elseif (($enableContactProcessing -eq $TRUE) -and ($enableUserProcessing -eq $TRUE))
+    {
+        out-logfile -string "Either contact processing or user processing may be enabled at one time."
+        out-logfile -string "ERROR - PARAMETER EXCEPTION" -isError:$true
+    }
+    elseif (($enableGroupProcessing -eq $TRUE) -and ($enableUserProcessing -eq $TRUE))
+    {
+        out-logfile -string "Either group processing or user processing may be enabled at one time."
         out-logfile -string "ERROR - PARAMETER EXCEPTION" -isError:$true
     }
 }
@@ -531,20 +628,7 @@ function create-contactSyncRuleEnabled
         [string]$adConnectorID
     )
 
-    $functionRuleName = "Out to AD - Contact Write CloudAnchor"
-    $functionDescription = "This rule enables writing back Cloud Anchor to Contacts in the form of Cloud_Anchor"
-    $functionDirection = "Outbound"
-    $functionPrecedenceAfter = '00000000-0000-0000-0000-000000000000'
-    $functionPrecedenceBefore = '00000000-0000-0000-0000-000000000000'
-    $functionSourceObjectType = "person"
-    $functionTargetObjectType = "contact"
-    $functionLinkType = "Join"
-    $functionSoftDeleteExpiraryInterval = 0
-    $functionImmutableTag = ""
-    $functionSource = @('cloudAnchor')
-    $functionDestination = 'msDS-ExternalDirectoryObjectId'
-    $functionFlowType = "Direct"
-    $functionValueMergeType = "Update"
+    
 
     try {
         out-logfile -string "Create the rule template."
@@ -582,12 +666,11 @@ function create-contactSyncRuleEnabled
         out-logfile -string "Unable to add the rule."
         out-logfile -string $_ -isError:$TRUE
     }
-    
 }
 
 #*****************************************************
 
-function create-contactSyncRuleDisabled
+function create-SyncRuleEnabled
 {
     Param(
         [Parameter(Mandatory = $true)]
@@ -595,16 +678,115 @@ function create-contactSyncRuleDisabled
         [Parameter(Mandatory = $true)]
         [int]$precedence,
         [Parameter(Mandatory = $true)]
-        [string]$adConnectorID
+        [string]$adConnectorID,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("User","Group","Contact")]
+        [string]$operationType
     )
 
-    $functionRuleName = "Out to AD - Contact Write CloudAnchor (Revert WriteBack)"
-    $functionDescription = "This rule sets an authoritativeNULL removing the Cloud_ value from contacts"
+    $functionUserObjectType = "User"
+    $functionContactObjecType = "Contact"
+    $functionGroupObjectType = "Group"
+
     $functionDirection = "Outbound"
     $functionPrecedenceAfter = '00000000-0000-0000-0000-000000000000'
     $functionPrecedenceBefore = '00000000-0000-0000-0000-000000000000'
-    $functionSourceObjectType = "person"
-    $functionTargetObjectType = "contact"
+    $functionLinkType = "Join"
+    $functionSoftDeleteExpiraryInterval = 0
+    $functionImmutableTag = ""
+    $functionSource = @('cloudAnchor')
+    $functionDestination = 'msDS-ExternalDirectoryObjectId'
+    $functionFlowType = "Direct"
+    $functionValueMergeType = "Update"
+
+    if ($operationType -eq $functionUserObjectType)
+    {
+        out-logfile -string "Entering function user object type..."
+
+        $functionRuleName = "Out to AD - User Write CloudAnchor"
+        $functionDescription = "This rule enables writing back Cloud Anchor to User in the form of User_Anchor"
+        $functionSourceObjectType = "person"
+        $functionTargetObjectType = "user"
+    }
+    elseif ($operationType -eq $functionContactObjectType)
+    {
+        out-logfile -string "Entering function contact object type..."
+
+        $functionRuleName = "Out to AD - Contact Write CloudAnchor"
+        $functionDescription = "This rule enables writing back Cloud Anchor to Contacts in the form of Cloud_Anchor"
+        $functionSourceObjectType = "person"
+        $functionTargetObjectType = "contact"
+    }
+    elseif ($operationType -eq $functionGroupObjectType)
+    {
+        out-logfile -string "Entering function group object type..."
+        $functionRuleName = "Out to AD - Group Write CloudAnchor"
+        $functionDescription = "This rule enables writing back Cloud Anchor to Groups in the form of Group_Anchor"
+        $functionSourceObjectType = "group"
+        $functionTargetObjectType = "group"
+    }
+
+    try {
+        out-logfile -string "Create the rule template."
+
+        new-ADSyncRule -name $functionRuleName -Identifier $RuleID -Description $functionDescription -Direction $functionDirection -Precedence $precedence -PrecedenceAfter $functionPrecedenceAfter -PrecedenceBefore $functionPrecedenceBefore -SourceObjectType $functionSourceObjectType -TargetObjectType $functionTargetObjectType -Connector $adConnectorID -LinkType $functionLinkType -SoftDeleteExpiryInterval $functionSoftDeleteExpiraryInterval -ImmutableTag $functionImmutableTag -OutVariable syncRule -errorAction STOP
+
+        out-logfile -string "Rule templated created successfully."
+    }
+    catch {
+        out-logfile -string "Unable to create the rule template."
+        out-logfile -string $_ -isError:$true
+    }
+
+    try {
+        out-logfile -string "Updating attribute flow mapping."
+
+        Add-ADSyncAttributeFlowMapping -SynchronizationRule $syncRule[0] -Source $functionSource -Destination $functionDestination -flowType $functionFlowType -ValueMergeType $functionValueMergeType -expression $functionExpression -OutVariable syncRule -errorAction STOP
+
+        out-logfile -string "Attribute flow mapping updated."
+    }
+    catch {
+        out-logfile -string "Unable to update the attribute flow mapping."
+
+        out-logfile -string $_
+    }
+
+    try {
+        out-logfile -string "Adding the new rule."
+
+        add-ADSyncRule -SynchronizationRule $syncRule[0] -errorAction STOP
+
+        out-logfile -string "Rule added successfully."
+    }
+    catch {
+        out-logfile -string "Unable to add the rule."
+        out-logfile -string $_ -isError:$TRUE
+    }
+}
+
+#*****************************************************
+
+function create-SyncRuleDisabled
+{
+    Param(
+        [Parameter(Mandatory = $true)]
+        [string]$RuleID,
+        [Parameter(Mandatory = $true)]
+        [int]$precedence,
+        [Parameter(Mandatory = $true)]
+        [string]$adConnectorID,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("User","Group","Contact")]
+        [string]$operationType
+    )
+
+    $functionUserObjectType = "User"
+    $functionContactObjecType = "Contact"
+    $functionGroupObjectType = "Group"
+
+    $functionDirection = "Outbound"
+    $functionPrecedenceAfter = '00000000-0000-0000-0000-000000000000'
+    $functionPrecedenceBefore = '00000000-0000-0000-0000-000000000000'
     $functionLinkType = "Join"
     $functionSoftDeleteExpiraryInterval = 0
     $functionImmutableTag = ""
@@ -613,7 +795,34 @@ function create-contactSyncRuleDisabled
     $functionFlowType = "Expression"
     $functionValueMergeType = "Update"
     $functionExpression = "AuthoritativeNull"
-    $functionActiveRule = $NULL
+
+    if ($operationType -eq $functionUserObjectType)
+    {
+        out-logfile -string "Entering function user object type..."
+
+        $functionRuleName = "Out to AD - User Write CloudAnchor (Revert WriteBack)"
+        $functionDescription = "This rule sets an authoritativeNULL removing the Cloud_ value from users."
+        $functionSourceObjectType = "person"
+        $functionTargetObjectType = "contact"
+    }
+    elseif ($operationType -eq $functionContactObjectType)
+    {
+        out-logfile -string "Entering function contact object type..."
+
+        $functionRuleName = "Out to AD - Contact Write CloudAnchor (Revert WriteBack)"
+        $functionDescription = "This rule sets an authoritativeNULL removing the Cloud_ value from contacts"
+        $functionSourceObjectType = "person"
+        $functionTargetObjectType = "contact"
+    }
+    elseif ($operationType -eq $functionGroupObjectType)
+    {
+        out-logfile -string "Entering function group object type..."
+
+        $functionRuleName = "Out to AD - Contact Write CloudAnchor (Revert WriteBack)"
+        $functionDescription = "This rule sets an authoritativeNULL removing the Cloud_ value from groups."
+        $functionSourceObjectType = "group"
+        $functionTargetObjectType = "group"
+    }
 
     try {
         out-logfile -string "Create the rule template."
@@ -651,7 +860,6 @@ function create-contactSyncRuleDisabled
         out-logfile -string "Unable to add the rule."
         out-logfile -string $_ -isError:$TRUE
     }
-    
 }
 
 #=====================================================================================
@@ -666,6 +874,9 @@ $precedence = -1
 $precedencePlusOne = -1
 $activeRuleID = $null
 $disabledRuleID = $null
+$functionUserObjectType = "User"
+$functionContactObjecType = "Contact"
+$functionGroupObjectType = "Group"
 
 
 new-logfile -logFileName $logFileName -logFolderPath $logFolderPath
@@ -674,7 +885,7 @@ out-logfile -string "===========================================================
 out-logfile -string "Begin EnableCloudAnchor"
 out-logfile -string "====================================================================================="
 
-validate-Parameters -enableContactProcessing $enableContactProcessing -enableGroupProcessing $enableGroupProcessing
+validate-Parameters -enableContactProcessing $enableContactProcessing -enableGroupProcessing $enableGroupProcessing -enableUserProcessing $enableUserProcessing
 
 get-ADConnect #Validate that we are running the commands on an ADConnect Server
 
@@ -712,13 +923,25 @@ out-logfile -string ("Disabled Rule ID: "+$disabledRuleID)
 
 if ($enableContactProcessing -eq $TRUE)
 {
-    out-logfile -string "EntAering contact rule processing."
+    out-logfile -string "Entering contact rule processing."
 
-    create-contactSyncRuleEnabled -ruleID $activeRuleID -precedence $precedence -adConnectorID $activeDirectoryConnector
+    create-SyncRuleEnabled -ruleID $activeRuleID -precedence $precedence -adConnectorID $activeDirectoryConnector -operationType $functionContactOperationType
 
-    create-contactSyncRuleDisabled -ruleID $disabledRuleID -precedence $precedencePlusOne -adConnectorID $activeDirectoryConnector
+    create-SyncRuleDisabled -ruleID $disabledRuleID -precedence $precedencePlusOne -adConnectorID $activeDirectoryConnector -operationType $functionContactOperationType
 }
-else 
+elseif ($enableGroupProcessing -eq $true) 
 {
     out-logfile -string "Entering group rule processing."
+
+    create-SyncRuleEnabled -ruleID $activeRuleID -precedence $precedence -adConnectorID $activeDirectoryConnector -operationType $functionGroupOperationType
+
+    create-SyncRuleDisabled -ruleID $disabledRuleID -precedence $precedencePlusOne -adConnectorID $activeDirectoryConnector -operationType $functionGroupOperationType
+}
+elseif ($enableUserProcessing -eq $true) 
+{
+    out-logfile -string "Entering user rule processing."
+
+    create-SyncRuleEnabled -ruleID $activeRuleID -precedence $precedence -adConnectorID $activeDirectoryConnector -operationType $functionUserOperationType
+
+    create-SyncRuleDisabled -ruleID $disabledRuleID -precedence $precedencePlusOne -adConnectorID $activeDirectoryConnector -operationType $functionUserOperationType
 }
