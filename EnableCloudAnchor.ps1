@@ -826,7 +826,15 @@ function create-SyncRule
     try {
         out-logfile -string "Updating attribute flow mapping."
 
-        Add-ADSyncAttributeFlowMapping -SynchronizationRule $syncRule[0] -Source $functionSource -Destination $functionDestination -flowType $functionFlowType -ValueMergeType $functionValueMergeType -expression $functionExpression -OutVariable syncRule -errorAction STOP
+        if ($ruleEnabled -eq $TRUE)
+        {
+            Add-ADSyncAttributeFlowMapping -SynchronizationRule $syncRule[0] -Source $functionSource -Destination $functionDestination -flowType $functionFlowType -ValueMergeType $functionValueMergeType -OutVariable syncRule -errorAction STOP
+        }
+        else 
+        {
+            Add-ADSyncAttributeFlowMapping -SynchronizationRule $syncRule[0] -Source $functionSource -Destination $functionDestination -flowType $functionFlowType -ValueMergeType $functionValueMergeType -expression $functionExpression -OutVariable syncRule -errorAction STOP
+        }
+
 
         out-logfile -string "Attribute flow mapping updated."
     }
